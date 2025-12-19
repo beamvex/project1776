@@ -1,11 +1,14 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
+import * as xlsx from 'xlsx';
 
 type Args = {
   dir: string;
   message: string;
   date?: string;
+  ods?: string;
+  sheet?: string;
 };
 
 function parseArgs(argv: string[]): Args {
@@ -15,6 +18,8 @@ function parseArgs(argv: string[]): Args {
     if (a === '--dir') out.dir = argv[++i];
     else if (a === '--message') out.message = argv[++i];
     else if (a === '--date') out.date = argv[++i];
+    else if (a === '--ods') out.ods = argv[++i];
+    else if (a === '--sheet') out.sheet = argv[++i];
   }
 
   if (!out.dir) out.dir = 'generated-repo';
@@ -57,6 +62,30 @@ function ensureRepo(repoDir: string): void {
   }
 }
 
+function readOdsFile(
+  odsPath: string,
+  sheetName?: string
+): Array<Record<string, unknown>> {
+  if (!fs.existsSync(odsPath)) {
+    throw new Error(`ODS file not found: ${odsPath}`);
+  }
+
+  const workbook = xlsx.readFile(odsPath, { cellDates: true });
+  const selectedSheetName = sheetName ?? workbook.SheetNames[0];
+  if (!selectedSheetName) {
+    throw new Error(`No sheets found in ODS file: ${odsPath}`);
+  }
+
+  const sheet = workbook.Sheets[selectedSheetName];
+  if (!sheet) {
+    throw new Error(
+      `Sheet not found: ${selectedSheetName}. Available: ${workbook.SheetNames.join(', ')}`
+    );
+  }
+
+  return xlsx.utils.sheet_to_json(sheet, { defval: null });
+}
+
 function main(): void {
   const args = parseArgs(process.argv.slice(2));
   const repoDir = path.resolve(process.cwd(), args.dir);
@@ -64,7 +93,13 @@ function main(): void {
 
   ensureRepo(repoDir);
 
-  createFile(repoDir, when, 'created a file');
+  if (args.ods) {
+    const odsPath = path.resolve(process.cwd(), args.ods);
+    const rows = readOdsFile(odsPath, args.sheet);
+    console.log(rows);
+  }
+
+  //createFile(repoDir, when, 'created a file');
 
   console.log(`Repo created at: ${repoDir}`);
 }
