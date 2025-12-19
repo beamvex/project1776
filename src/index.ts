@@ -22,7 +22,7 @@ function parseArgs(argv: string[]): Args {
     else if (a === '--sheet') out.sheet = argv[++i];
   }
 
-  if (!out.dir) out.dir = 'generated-repo';
+  if (!out.dir) out.dir = '../generated-repo';
   if (!out.message) out.message = 'Initial commit';
   return out as Args;
 }
@@ -86,17 +86,31 @@ function readOdsFile(
   return xlsx.utils.sheet_to_json(sheet, { defval: null });
 }
 
-function main(): void {
+function main(sundays: string[]): void {
   const args = parseArgs(process.argv.slice(2));
   const repoDir = path.resolve(process.cwd(), args.dir);
-  const when = parseDateOrNow(args.date);
 
   ensureRepo(repoDir);
 
   if (args.ods) {
     const odsPath = path.resolve(process.cwd(), args.ods);
     const rows = readOdsFile(odsPath, args.sheet);
-    console.log(rows);
+    let d = 0;
+    for (const row of rows) {
+      process.stdout.write(row.day + '');
+      for (let i = 1; i <= 53; i++) {
+        if (row[i]) {
+          let theDate = parseDateOrNow(sundays[i - 1]);
+          theDate.setDate(theDate.getDate() + d);
+          process.stdout.write('x ');
+          createFile(repoDir, theDate, `created file for ${row.day} ${i}`);
+        } else {
+          process.stdout.write('. ');
+        }
+      }
+      process.stdout.write('\n');
+      d++;
+    }
   }
 
   //createFile(repoDir, when, 'created a file');
@@ -130,4 +144,16 @@ function createFile(repoDir: string, when: Date, message: string): void {
   });
 }
 
-main();
+const sundays = [];
+let tdate = new Date('1976-01-01T09:00:00Z');
+
+do {
+  tdate.setDate(tdate.getDate() - 1);
+} while (tdate.getDay() > 0);
+
+for (let i = 0; i < 53; i++) {
+  sundays.push(tdate.toISOString());
+  tdate.setDate(tdate.getDate() + 7);
+}
+
+main(sundays);
